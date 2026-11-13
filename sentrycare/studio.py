@@ -4,6 +4,7 @@ from dataclasses import replace
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 import threading
 import time
@@ -36,6 +37,19 @@ def decode_image(data):
     return frame
 
 
+def _import_mediapipe():
+    import os
+    import sys
+    import types
+    mpl_dir = Path(__file__).resolve().parent.parent / "data/logs/.mpl"
+    mpl_dir.mkdir(parents=True, exist_ok=True)
+    os.environ.setdefault("MPLCONFIGDIR", str(mpl_dir))
+    sys.modules.setdefault("mediapipe.tasks", types.ModuleType("mediapipe.tasks"))
+    sys.modules.setdefault("mediapipe.tasks.python", types.ModuleType("mediapipe.tasks.python"))
+    import mediapipe as mp
+    return mp
+
+
 class Studio:
     def __init__(self, root, engine=None, autostart=True, project_root=None):
         self.root = Path(root).resolve()
@@ -53,6 +67,9 @@ class Studio:
         self.gallery = []
         self.settings = {"similarity_threshold": .45, "confirm_seconds": 1.2}
         self.mp = None
+        # Body backend: "yolo" (multi-person YOLO11-pose + ByteTrack) when available, else "mediapipe".
+        self.pose_backend = os.environ.get("SENTRYCARE_POSE", "auto").lower()
+        self.pose_note = None
         self.active_job = None
         if autostart:
             threading.Thread(target=self.initialize, daemon=True, name="studio-models").start()
@@ -60,12 +77,33 @@ class Studio:
     def initialize(self):
         try:
             self.engine.initialize()
-            import mediapipe as mp
-            self.mp = mp
+            self._initialize_body_backend()
             self.status = "ready"
         except Exception as exc:
             logger.exception("Studio initialization failed")
             self.status, self.error = "error", str(exc)
+
+    def _initialize_body_backend(self):
+        wanted = self.pose_backend
+        if wanted in ("auto", "yolo"):
+            try:
+                monitor = self._new_body_monitor()
+                monitor.detect(np.zeros((480, 640, 3), np.uint8))     # warm up: the first call is slow
+                self.pose_backend = "yolo"
+                self.pose_note = "YOLO11-pose · multi-person"
+                return
+            except Exception as exc:
+                if wanted == "yolo":
+                    raise
+                logger.warning("YOLO pose unavailable (%s); using MediaPipe single-person pose", exc)
+                self.pose_note = "MediaPipe · single person (YOLO unavailable)"
+        self.mp = _import_mediapipe()
+        self.pose_backend = "mediapipe"
+        self.pose_note = self.pose_note or "MediaPipe · single person"
+
+    def _new_body_monitor(self):
+        from .body_tracking import MultiPersonFallMonitor
+        return MultiPersonFallMonitor(self.settings["confirm_seconds"])
 
     def require_ready(self):
         if self.status != "ready":
@@ -170,7 +208,22 @@ class Studio:
             if archive:
                 archive.close()
 
-    def analyze(self, frame, session_id, mode="monitor"):
+    def _record_fall(self, who, score, signals, camera=None, track_id=None):
+        details = {"score": score, "signals": signals}
+        if camera:
+            details["camera"] = camera
+        if track_id is not None:
+            details["track"] = track_id
+        self.registry.event("FALL", who, details)
+        return {"kind": "FALL", "person": who, "score": score}
+
+    def drop_session(self, session_id):
+        with self.inference_lock:
+            session = self.sessions.pop(session_id, None)
+        if session and session.get("pose"):
+            session["pose"].close()
+
+    def analyze(self, frame, session_id, mode="monitor", camera=None):
         self.require_ready()
         if not self.inference_lock.acquire(blocking=False):
             return None
@@ -181,13 +234,14 @@ class Studio:
                 if started - self.sessions[key]["last_seen"] > 120:
                     if self.sessions[key].get("pose"):
                         self.sessions[key]["pose"].close()
+                    self.sessions[key]["monitor"] = None
                     del self.sessions[key]
             if session_id not in self.sessions:
                 if len(self.sessions) >= 8:
                     raise ValueError("Too many active camera sessions")
                 self.sessions[session_id] = {"tracks": [], "last_seen": started, "pose": None,
                     "fsm": FallStateMachine(studio_fall_config(self.settings["confirm_seconds"])),
-                    "alerted": False, "next_track": 1}
+                    "alerted": False, "next_track": 1, "monitor": None}
             session = self.sessions[session_id]
             if started - session["last_seen"] > 1.5:
                 session["fsm"].reset()
@@ -195,6 +249,8 @@ class Studio:
                 session["alerted"] = False
                 if session["pose"]:
                     session["pose"].reset()
+                if session.get("monitor"):
+                    session["monitor"].reset()
             session["last_seen"] = started
             found = self.engine.detect(frame)
             tracks, used = [], set()
@@ -227,12 +283,29 @@ class Studio:
                         track.update(name="Checking", person_id=None, reason="Confirming identity")
                 tracks.append(track)
             session["tracks"] = tracks
-            fall = {"state": "NORMAL", "pose_usable": False, "score": 0, "signals": {}, "landmarks": []}
-            if mode == "monitor":
+            fall = {"state": "NORMAL", "pose_usable": False, "score": 0, "signals": {}, "landmarks": [], "people": 0}
+            people, alerts = [], []
+            if mode == "monitor" and self.pose_backend == "yolo":
+                if session.get("monitor") is None:
+                    session["monitor"] = self._new_body_monitor()
+                from .body_tracking import summarize
+                people = session["monitor"].update(frame, started)
+                height, width = frame.shape[:2]
+                for person in people:
+                    x1, y1, x2, y2 = person["box"]
+                    inside = [t for t in tracks if t["person_id"]
+                              and x1 * width <= t["bbox"][0] + t["bbox"][2] / 2 <= x2 * width
+                              and y1 * height <= t["bbox"][1] + t["bbox"][3] / 2 <= y2 * height]
+                    person["name"] = inside[0]["name"] if len(inside) == 1 else None
+                fall.update(summarize(people))
+                for person in people:
+                    if person.pop("new_alert"):
+                        alerts.append(self._record_fall(person["name"] or "Unassigned person", person["score"],
+                                                        person["signals"], camera, person["track_id"]))
+            elif mode == "monitor":
                 if session["pose"] is None:
                     if self.mp is None:
-                        import mediapipe as mp
-                        self.mp = mp
+                        self.mp = _import_mediapipe()
                     session["pose"] = self.mp.solutions.pose.Pose(model_complexity=1, smooth_landmarks=True,
                         min_detection_confidence=.55, min_tracking_confidence=.55)
                 result = session["pose"].process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
@@ -240,7 +313,7 @@ class Studio:
                 fsm = session["fsm"]
                 state = fsm.update_rich(landmarks, *frame.shape[:2], started)
                 fall = {"state": state, "pose_usable": fsm.last_pose_usable,
-                        "score": round(fsm.last_score, 2), "signals": fsm.last_breakdown,
+                        "score": round(fsm.last_score, 2), "signals": fsm.last_breakdown, "people": int(bool(landmarks)),
                         "landmarks": [[round(p.x, 4), round(p.y, 4), round(p.visibility, 2)] for p in landmarks] if landmarks else []}
                 if state == CONFIRMED_FALL and not session["alerted"]:
                     who = "Unassigned person"
@@ -250,12 +323,14 @@ class Studio:
                                       and t["bbox"][1] <= nose_y <= t["bbox"][1]+t["bbox"][3]]
                         if len(associated) == 1:
                             who = associated[0]["name"]
-                    self.registry.event("FALL", who, {"score": fall["score"], "signals": fall["signals"]})
+                    alerts.append(self._record_fall(who, fall["score"], fall["signals"], camera))
                     session["alerted"] = True
                 elif state != CONFIRMED_FALL:
                     session["alerted"] = False
             public_tracks = [{k: v for k, v in t.items() if k not in ("candidate", "hits", "last_embed")} for t in tracks]
-            return {"faces": public_tracks, "fall": fall, "width": frame.shape[1], "height": frame.shape[0],
-                    "processing_ms": round((time.monotonic() - started) * 1000), "trained_people": len(self.gallery)}
+            return {"faces": public_tracks, "fall": fall, "people": people, "body_model": self.pose_note,
+                    "width": frame.shape[1], "height": frame.shape[0],
+                    "processing_ms": round((time.monotonic() - started) * 1000), "trained_people": len(self.gallery),
+                    "alerts": alerts}
         finally:
             self.inference_lock.release()

@@ -1,12 +1,17 @@
-Runtime files stay here and are excluded from version control.
+# Local data directory
 
-- `known_faces/<name>/`: 3-5 enrollment photos per consenting person.
-- `captured_faces/<camera-id>/`: unknown-face snapshots.
-- `event_logs/<camera-id>/`: confirmed-posture snapshots and CSV event logs.
-- `logs/`: application logs, runtime checks, supervisor status, and worker heartbeats.
-- `datasets/`: local public research datasets and their attribution.
-- `evaluation/`: manifests, cached features, threshold configurations, reports.
-- `studio/`: the UI's SQLite registry and aligned enrollment images.
+Runtime data is stored here and is excluded from version control. Nothing in this folder is shared through Git.
 
-Existing captured images were moved into `captured_faces/` without modification.
-Override this root with `SENTRYCARE_DATA_DIR` before launching a process.
+| Path | Contents |
+|---|---|
+| `models/` | Downloaded model weights (YuNet, SFace, YOLO11n-pose) |
+| `studio/` | Dashboard registry (SQLite), aligned enrolment photos, alert settings |
+| `tls/` | Self-signed certificate for network mode |
+| `known_faces/<name>/` | Optional source photos for bulk import (3-5 per consenting person) |
+| `captured_faces/<camera-id>/` | Unknown-face snapshots from the command-line worker |
+| `event_logs/<camera-id>/` | Event snapshots and CSV logs from the command-line worker |
+| `logs/` | Application logs, diagnostics, supervisor status and heartbeats |
+| `datasets/` | Public research datasets and their attribution |
+| `evaluation/` | Evaluation manifests and reports |
+
+Set `SENTRYCARE_DATA_DIR` to use a different location.

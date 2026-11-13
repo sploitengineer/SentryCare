@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from fall_detection import FallConfig
-from phase6_evaluation import evaluate, load_features, tune, main
+from sentrycare.fall_detection import FallConfig
+from sentrycare.evaluation import evaluate, load_features, tune, main
 
 
 def clip(name, label, split, aspect):
@@ -58,7 +58,7 @@ class EvaluationTests(unittest.TestCase):
                 "clips": [clip("f", "fall", "train", 2), clip("a", "adl", "train", .5),
                           clip("v", "fall", "validation", 2)]}))
             config_path, report_path = root / "config.json", root / "report.json"
-            with patch("sys.argv", ["phase6_evaluation.py", "tune", str(features),
+            with patch("sys.argv", ["sentrycare-evaluate", "tune", str(features),
                          "--config-output", str(config_path), "--report", str(report_path)]):
                 main()
             config = FallConfig.load(config_path)

@@ -4,7 +4,7 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#103c36"><title>SentryCare Studio</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23103c36'/%3E%3Cpath d='M14 7h4v7h7v4h-7v7h-4v-7H7v-4h7z' fill='%23b8ebc8'/%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/static/studio.css"><script src="/static/studio.js" defer></script>
+  <link rel="stylesheet" href="/static/studio.css"><script src="/static/studio.js" defer></script><script src="/static/network.js" defer></script><script src="/static/alerts.js" defer></script>
 </head>
 <body>
   <aside class="sidebar">
@@ -12,15 +12,16 @@
     <div class="nav-caption">WORKSPACE</div>
     <nav aria-label="Workspace">
       <button class="nav-item active" data-tab="monitor"><span class="nav-icon">◉</span>Live monitoring<span class="nav-dot"></span></button>
+      <button class="nav-item" data-tab="cameras"><span class="nav-icon">⌁</span>Camera network<span id="nav-cameras" class="nav-count">0</span></button>
       <button class="nav-item" data-tab="enroll"><span class="nav-icon">⊕</span>Enroll a person</button>
       <button class="nav-item" data-tab="profiles"><span class="nav-icon">▦</span>Saved profiles<span id="nav-count" class="nav-count">0</span></button>
       <button class="nav-item" data-tab="events"><span class="nav-icon">◷</span>Event history</button>
     </nav>
     <div class="sidebar-note"><span class="note-shield">◇</span><strong>Local by design</strong><p>Your photos and recognition data stay on this computer.</p></div>
-    <div class="sidebar-bottom"><span class="avatar">SC</span><div>Research workspace<small>Single body · multiple faces</small></div></div>
+    <div class="sidebar-bottom"><span class="avatar">SC</span><div>Research workspace<small>Multi-person · multi-camera</small></div></div>
   </aside>
   <div class="workspace">
-    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Live monitoring</strong></span><div class="topbar-right"><span class="local-label">◈ &nbsp; Local workspace</span><button id="global-camera-stop" class="pill" hidden>● Camera on · Stop</button><span id="engine-state" class="pill amber"><i></i>Loading models</span></div></header>
+    <header class="topbar"><span class="breadcrumb">Workspace <span>/</span> <strong id="breadcrumb">Live monitoring</strong></span><div class="topbar-right"><span class="local-label">◈ &nbsp; Local workspace</span><button id="alerts-toggle" class="pill amber" type="button"><i></i>Enable alerts</button><button id="global-camera-stop" class="pill" hidden>● Camera on · Stop</button><span id="engine-state" class="pill amber"><i></i>Loading models</span></div></header>
     <main>
       <section class="page-heading"><div><div class="eyebrow">SENTRYCARE STUDIO</div><h1 id="page-title">A watchful eye. A safer space.</h1><p id="page-description">See who is here and monitor posture, together in one view.</p></div><div class="heading-date" id="today"></div></section>
       <div id="engine-error" class="notice danger" hidden></div>
@@ -35,7 +36,7 @@
         <div class="monitor-grid">
           <article class="card camera-card"><div class="card-heading"><div><h2>Live camera</h2><span class="subtle">Your browser camera · live preview</span></div><span class="pill neutral" id="camera-badge"><i></i>Camera off</span></div><div id="monitor-camera-slot"></div><div class="camera-footer"><span><i class="tiny-dot green"></i> Images processed locally</span><span id="latency">Analysis —</span></div></article>
           <div class="monitor-side"><article class="card"><div class="card-heading"><h2>People in view</h2><span class="count-bubble" id="people-count">0</span></div><div id="live-people" class="live-people"><div class="empty-small"><span>◎</span><strong>No camera connected</strong><p>Start your camera to see identities here.</p></div></div></article>
-            <article class="card health-card"><h2>A little context</h2><div class="health-row"><span>Face identification</span><span class="label-good">Independent</span></div><div class="health-row"><span>Body pose</span><span id="pose-health">Waiting for camera</span></div><div class="health-row"><span>Fall confirmation</span><span>1.2 seconds</span></div><p class="help-note">Keep shoulders and hips visible for fall monitoring. Face recognition also works in a close-up.</p></article>
+            <article class="card health-card"><h2>A little context</h2><div class="health-row"><span>Face identification</span><span class="label-good">Independent</span></div><div class="health-row"><span>Body pose</span><span id="pose-health">Waiting for camera</span></div><div class="health-row"><span>Fall confirmation</span><span>1.2 s + 2 s stayed down</span></div><p class="help-note">Keep people visible from head to knees for fall monitoring. Face recognition also works in a close-up.</p></article>
             <div class="research-note"><span>ⓘ</span><p>Research prototype. Fall events need human review; the detector is not a certified safety system.</p></div>
           </div>
         </div>
@@ -57,11 +58,32 @@
         <div id="profiles-grid" class="profiles-grid"></div>
         <div class="notice"><strong>Keep the good angles.</strong> A few sharp, varied photos work better than many blurry duplicates. Removing a photo also removes its saved face features.</div>
       </section>
-      <section id="tab-events" class="tab-panel" hidden><article class="card"><div class="card-heading"><div><h2>Monitoring events</h2><span class="subtle">Confirmed posture events from this workspace</span></div><button id="refresh-events" class="button secondary small">Refresh</button></div><div class="table-scroll"><table><thead><tr><th>Event</th><th>Person</th><th>Time</th><th>Evidence</th></tr></thead><tbody id="events-body"></tbody></table></div></article><div class="notice">A name is attached only when a recognized face can be associated with the tracked body. Otherwise the event is marked “Unassigned person”. One body is monitored at a time.</div></section>
+      <section id="tab-cameras" class="tab-panel" hidden>
+        <div class="monitor-grid">
+          <article class="card camera-card"><div class="card-heading"><div><h2 id="net-view-title">No camera selected</h2><span class="subtle" id="net-view-sub">Connect a phone or add a stream, then choose it here</span></div><span class="pill neutral" id="net-view-badge"><i></i>Offline</span></div>
+            <div class="net-tabs" id="net-tabs" role="tablist" aria-label="Camera sources"></div>
+            <div class="net-stage"><img id="net-video" alt="Selected camera with detections" hidden><div id="net-empty" class="net-empty"><strong>No video yet</strong><p>Open the phone camera link on a phone on this Wi-Fi, or add a stream URL.</p></div></div>
+            <div class="camera-footer"><span id="net-people">—</span><span id="net-latency">Analysis —</span></div></article>
+          <div class="monitor-side">
+            <article class="card"><div class="card-heading"><h2>Connect a phone</h2></div><div id="net-connect"></div></article>
+            <article class="card"><div class="card-heading"><h2>Add a stream camera</h2></div>
+              <form id="stream-form" class="net-form"><label for="stream-name">Name</label><input id="stream-name" maxlength="40" placeholder="e.g. Hallway (IP Webcam)">
+              <label for="stream-url">Stream URL or webcam number</label><input id="stream-url" maxlength="500" placeholder="http://192.168.1.23:8080/video  or  0" required autocomplete="off">
+              <button class="button primary full" type="submit">Add camera</button>
+              <p class="help-note">Android: the free “IP Webcam” app shows an address; add <code>/video</code>. RTSP cameras work too. <code>0</code> is this laptop’s webcam (stop the browser camera on Live monitoring first).</p></form></article>
+            <article class="card"><div class="card-heading"><h2>Connected cameras</h2></div><div id="net-list" class="net-list"></div></article>
+          </div>
+        </div>
+      </section>
+      <section id="tab-events" class="tab-panel" hidden>
+        <div class="alerts-grid"><article class="card"><div class="card-heading"><div><h2>Live alerts</h2><span class="subtle">Since SentryCare started · shown on every open dashboard</span></div><button id="simulate-fall" class="button secondary small" type="button">Simulate fall alert</button></div><div id="alerts-list" class="alerts-list"></div></article>
+        <article class="card"><div class="card-heading"><div><h2>Phone push (ntfy)</h2><span class="subtle">Optional · works with the screen locked</span></div></div><div id="alert-settings" class="alert-settings"></div></article></div>
+        <article class="card"><div class="card-heading"><div><h2>Monitoring events</h2><span class="subtle">Confirmed posture events from this workspace</span></div><button id="refresh-events" class="button secondary small">Refresh</button></div><div class="table-scroll"><table><thead><tr><th>Event</th><th>Person</th><th>Time</th><th>Evidence</th></tr></thead><tbody id="events-body"></tbody></table></div></article><div class="notice">Each person in view is tracked separately. A name is attached when exactly one recognised face lies within that person’s body box; otherwise the event is marked “Unassigned person”.</div></section>
       <footer class="page-footer"><span>✚ &nbsp; SentryCare · Made for a more attentive space</span><span>No cloud uploads · Local face data</span></footer>
     </main>
   </div>
   <div id="camera-component" class="camera-component"><div class="camera-stage" id="camera-stage"><video id="video" autoplay playsinline muted hidden></video><canvas id="overlay" hidden></canvas><div id="camera-empty" class="camera-empty"><div class="camera-symbol"><svg viewBox="0 0 40 40" fill="none" aria-hidden="true"><rect x="6" y="11" width="28" height="22" rx="5" stroke="currentColor" stroke-width="1.8"/><path d="m13 11 2-4h10l2 4" stroke="currentColor" stroke-width="1.8"/><circle cx="20" cy="22" r="6" stroke="currentColor" stroke-width="1.8"/></svg></div><h3>Your space, in focus.</h3><p>Connect your camera to recognize familiar<br>faces and monitor body posture.</p><button id="start-camera" class="button mint">Start camera <span>↗</span></button><small>Camera access stays on this computer</small></div><span id="live-indicator" class="live-indicator" hidden><i></i>LIVE</span></div><div class="camera-controls"><select id="camera-select" aria-label="Select camera"><option value="">Default camera</option></select><button id="stop-camera" class="button secondary small" disabled>Stop camera</button></div></div>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="alert-overlay" class="alert-overlay" hidden aria-live="assertive"></div>
   <dialog id="confirm-dialog"><h2 id="confirm-title">Remove profile?</h2><p id="confirm-text"></p><div class="dialog-actions"><button id="cancel-delete" class="button secondary">Cancel</button><button id="confirm-delete" class="button danger-button">Remove</button></div></dialog>
 </body></html>

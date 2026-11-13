@@ -78,7 +78,7 @@ def main(argv=None):
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--alert-phone")
     parser.add_argument("--max-reconnect", type=int, default=5)
-    parser.add_argument("--fall-config", help="JSON thresholds exported by phase6_evaluation.py")
+    parser.add_argument("--fall-config", help="JSON thresholds exported by sentrycare-evaluate")
     parser.add_argument("--no-face-id", action="store_true", help="Run pose detection without DeepFace")
     parser.add_argument("--camera-id", default="default", help="Safe camera name for separate event directories")
     parser.add_argument("--max-frames", type=int, help="Stop after this many frames (for smoke tests)")

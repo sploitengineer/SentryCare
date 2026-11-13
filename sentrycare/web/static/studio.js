@@ -4,6 +4,7 @@ const state = {tab:"monitor", people:[], token:"", engine:"starting", selected:"
   session:crypto.randomUUID().replaceAll("-",""), busy:false, generation:0, result:null, job:null, pollBusy:false};
 const titles = {
   monitor:["Live monitoring","A watchful eye. A safer space.","See who is here and monitor posture, together in one view."],
+  cameras:["Camera network","Every camera, one dashboard.","Stream phones and network cameras here; each one is analysed for people and falls."],
   enroll:["Enroll a person","Familiar faces, thoughtfully saved.","A name, a few clear angles, and a profile that is ready to recognize."],
   profiles:["Saved profiles","Everyone, at a glance.","See the people you have enrolled and the photos behind each profile."],
   events:["Event history","The moments that need attention.","Review locally recorded posture events and their supporting signals."]};
@@ -134,10 +135,10 @@ async function analyzeLoop(generation){
 function renderLive(result){
   $("stat-faces").textContent=result.faces.length;$("people-count").textContent=result.faces.length;
   $("latency").textContent=`Analysis ${result.processing_ms} ms · live preview independent`;
-  const fall=result.fall;const label={NORMAL:"Normal",POSSIBLE_FALL:"Check posture",CONFIRMED_FALL:"Fall event"}[fall.state];
+  const fall=result.fall;const label={NORMAL:"Normal",POSSIBLE_FALL:"Check posture",CHECKING_DOWN:"Confirming fall",CONFIRMED_FALL:"Fall event",LYING:"Lying (no fall seen)"}[fall.state];
   $("stat-posture").textContent=fall.pose_usable||fall.state!=="NORMAL"?label:"No body pose";
-  $("stat-posture").style.color=fall.state==="CONFIRMED_FALL"?"#b74743":fall.state==="POSSIBLE_FALL"?"#9b7021":"";
-  $("stat-posture-note").textContent=fall.pose_usable?"Temporal posture analysis active":fall.state!=="NORMAL"?"Pose lost; review the scene":"Keep shoulders and hips in view";
+  $("stat-posture").style.color=fall.state==="CONFIRMED_FALL"?"#b74743":["POSSIBLE_FALL","CHECKING_DOWN"].includes(fall.state)?"#9b7021":"";
+  $("stat-posture-note").textContent=fall.people>1?`${fall.people} people tracked · ${result.body_model||""}`:fall.pose_usable?`Temporal posture analysis active${result.body_model?" · "+result.body_model:""}`:fall.state!=="NORMAL"?"Pose lost; review the scene":"Keep shoulders and hips in view";
   $("pose-health").textContent=fall.pose_usable?"Visible":"Not visible";
   $("live-people").innerHTML=result.faces.length?result.faces.map(f=>`<div class="person-live"><span class="avatar">${f.person_id?esc(initials(f.name)):"◎"}</span><div><strong>${esc(f.name)}</strong><small>${f.similarity!==null&&f.similarity!==undefined?`Similarity ${f.similarity.toFixed(2)} · `:""}${esc(f.reason||"")}</small></div></div>`).join(""):'<div class="empty-small"><span>◎</span><strong>No face in view</strong><p>Face the camera in good light.</p></div>';
 }
@@ -145,6 +146,10 @@ function drawOverlay(){
   const canvas=$("overlay"),video=$("video");canvas.width=video.videoWidth||960;canvas.height=video.videoHeight||540;const ctx=canvas.getContext("2d");ctx.clearRect(0,0,canvas.width,canvas.height);
   if(!state.result)return;const result=state.result;const sx=canvas.width/result.width,sy=canvas.height/result.height;
   for(const face of result.faces){const [x,y,w,h]=face.bbox;const color=face.person_id?"#b0e9ae":face.name==="Unknown"?"#efd393":"#b8d7e1";ctx.strokeStyle=color;ctx.lineWidth=2.5*sx;ctx.strokeRect(x*sx,y*sy,w*sx,h*sy);const label=face.name;ctx.font=`${Math.round(14*sx)}px Segoe UI`;const tw=ctx.measureText(label).width+20*sx;const ty=Math.max(24*sy,y*sy);ctx.fillStyle="#13372de6";ctx.fillRect(x*sx,ty-25*sy,tw,25*sy);ctx.fillStyle=color;ctx.fillText(label,x*sx+10*sx,ty-8*sy);}
+  const stateColor={NORMAL:"#a2d5c3",POSSIBLE_FALL:"#f5be3c",CHECKING_DOWN:"#f08c1e",LYING:"#9cb6d9",CONFIRMED_FALL:"#fb6b5c"};const coco=[[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+  for(const p of result.people||[]){const c=stateColor[p.state]||stateColor.NORMAL;ctx.strokeStyle=c;ctx.lineWidth=2.5;const k=p.keypoints||[];for(const [a,b] of coco){if(!k[a]||!k[b]||k[a][2]<.5||k[b][2]<.5)continue;ctx.beginPath();ctx.moveTo(k[a][0]*canvas.width,k[a][1]*canvas.height);ctx.lineTo(k[b][0]*canvas.width,k[b][1]*canvas.height);ctx.stroke();}
+    const [x1,y1,x2,y2]=p.box;ctx.lineWidth=1.5;ctx.setLineDash([6,4]);ctx.strokeRect(x1*canvas.width,y1*canvas.height,(x2-x1)*canvas.width,(y2-y1)*canvas.height);ctx.setLineDash([]);
+    const label=`#${p.track_id}${p.name?" "+p.name:""}${p.state!=="NORMAL"?" · "+({POSSIBLE_FALL:"Check posture",CHECKING_DOWN:"Confirming fall",CONFIRMED_FALL:"FALL",LYING:"Lying"}[p.state]||p.state):""}`;ctx.font=`${Math.round(13*sx)}px Segoe UI`;const tw=ctx.measureText(label).width+14;const ly=Math.max(18,y1*canvas.height);ctx.fillStyle=c;ctx.fillRect(x1*canvas.width,ly-18,tw,18);ctx.fillStyle="#13231f";ctx.fillText(label,x1*canvas.width+7,ly-5);}
   const points=result.fall.landmarks||[];const lines=[[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],[23,25],[25,27],[24,26],[26,28]];
   ctx.strokeStyle=result.fall.state==="CONFIRMED_FALL"?"#fb9b8c":"#a2d5c3";ctx.lineWidth=2;
   for(const [a,b]of lines){if(!points[a]||!points[b]||points[a][2]<.5||points[b][2]<.5)continue;ctx.beginPath();ctx.moveTo(points[a][0]*canvas.width,points[a][1]*canvas.height);ctx.lineTo(points[b][0]*canvas.width,points[b][1]*canvas.height);ctx.stroke();}

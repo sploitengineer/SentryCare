@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sentrycare"
-version = "0.2.0"
-description = "CCTV resident-safety analytics and fall-threshold evaluation"
+version = "0.3.0"
+description = "Camera-based resident safety monitoring: face recognition, multi-person fall detection and real-time alerts"
 requires-python = ">=3.11,<3.13"
 dynamic = ["dependencies"]
 
@@ -26,4 +26,4 @@ dependencies = {file = ["requirements.txt"]}
 include = ["sentrycare*", "examples*"]
 
 [tool.setuptools.package-data]
-sentrycare = ["web/templates/*.html", "web/static/*.css", "web/static/*.js"]
+sentrycare = ["web/templates/*.html", "web/static/*.css", "web/static/*.js", "*.yaml"]

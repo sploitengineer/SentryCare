@@ -1,157 +1,318 @@
 # SentryCare
 
-**SentryCare Studio is now the main application:** one local web UI for camera capture, multi-angle enrollment, saved-photo galleries, building face profiles, live identification, fall monitoring, and event history. Double-click `Start SentryCare.cmd`, then open **http://127.0.0.1:8765**. See the [Studio guide](docs/STUDIO_GUIDE.md) for the full workflow and [ZIP integration report](docs/ZIP_INTEGRATION.md) for the imported changes and test results.
+**Camera-based resident safety monitoring for aged-care environments.**
 
-CPU-based CCTV analytics for aged-care resident safety: pose-based fall events, detected-face identification, RTSP reconnects, event snapshots, and optional Twilio notifications.
+SentryCare turns ordinary cameras (a laptop webcam, a phone, or an IP/CCTV camera) into a resident-safety monitor.
+It recognises enrolled people, tracks every person in view, detects falls, and alerts caretakers in real time.
+All processing runs locally on a standard laptop CPU. No cloud service is required, and biometric data never leaves the machine.
 
-This is an academic prototype. The local dashboard and enrollment UI are implemented. Fall detection uses geometry, motion evidence, and temporal confirmation; GPU confirmation, intrusion alert policy, multi-person body tracking, and cloud deployment remain future work.
+> **Academic research prototype.** SentryCare has not been clinically validated and is not a certified safety
+> device. Fall alerts are intended to prompt a human check, not to replace supervision.
 
-## Directory structure
+---
 
-```text
-facial_recognition/
-├── sentrycare/              # Application package
-│   ├── app.py               # One camera: inference, snapshots, alerts, heartbeat
-│   ├── web.py               # Local Studio web server
-│   ├── studio.py            # Enrollment jobs and bounded live analysis
-│   ├── registry.py          # SQLite people, images, embeddings, events
-│   ├── vision.py            # Native YuNet + aligned SFace pipeline
-│   ├── web/                 # Browser UI templates, JavaScript, and CSS
-│   ├── cameras.py           # Multiple worker processes, watchdog, restarts
-│   ├── doctor.py            # Runtime, model, and webcam checks
-│   ├── evaluation.py        # Feature extraction, threshold search, reports
-│   ├── recordings.py        # Video and timestamped RGB-sequence readers
-│   ├── fall_detection.py    # Posture features and temporal state machine
-│   ├── face_identity.py     # Detected-face matching using SFace
-│   ├── video_stream.py      # Video input, timeouts, reconnect, cleanup
-│   └── paths.py             # Shared data paths and local model cache
-├── examples/                # Earlier webcam prototypes
-├── configs/                 # Default fall settings and sample camera configuration
-├── scripts/                 # Setup, launch, and official URFD sample downloader
-├── tests/                   # Dependency-free regression tests
-├── docs/                    # Proposal, blueprints, validation notes, next steps
-├── evaluation/              # Generic example manifest
-├── data/                    # Ignored local runtime and research data
-│   ├── known_faces/         # One folder per enrolled person
-│   ├── captured_faces/      # Unknown faces, separated by camera ID
-│   ├── event_logs/          # Event CSVs and snapshots, separated by camera ID
-│   ├── logs/                # Logs, health report, heartbeat, supervisor status
-│   ├── models/              # Downloaded SFace weights
-│   ├── studio/              # UI enrollment images, embeddings, events
-│   ├── datasets/            # RGB recordings, timing files, attribution
-│   └── evaluation/          # Manifests, cached features, reports, exported settings
-├── .runtime/                # Local Python 3.12 (ignored)
-├── .venv/                   # Installed dependencies (ignored)
-├── pyproject.toml           # Package and console commands
-└── phase*.py                # Compatibility launchers for earlier commands
+## Contents
+
+- [Key features](#key-features)
+- [How it works](#how-it-works)
+- [Technology stack](#technology-stack)
+- [Getting started](#getting-started)
+- [Using SentryCare](#using-sentrycare)
+- [Evaluation](#evaluation)
+- [Testing](#testing)
+- [Project structure](#project-structure)
+- [Configuration](#configuration)
+- [Privacy and data handling](#privacy-and-data-handling)
+- [Limitations and future work](#limitations-and-future-work)
+- [Acknowledgements and licences](#acknowledgements-and-licences)
+- [Team](#team)
+
+---
+
+## Key features
+
+| Area | Capability |
+|---|---|
+| **Face recognition** | Enrol people from guided multi-angle captures or uploaded photos. Recognise several faces at once, label anyone not enrolled as *Unknown*, and give quality feedback when a photo is unsuitable. |
+| **Fall detection** | Multi-person pose tracking (YOLO11-pose + ByteTrack) with a separate fall state machine per person. Combines body geometry, descent speed and temporal confirmation, then requires the person to stay down before alerting. |
+| **Multiple cameras** | Use a phone as a wireless camera through its browser (no app needed), add IP/RTSP streams, and switch between them on one dashboard. |
+| **Real-time alerts** | Full-screen alarm, siren, system notifications and vibration on every connected dashboard. Acknowledgement is shared across screens. Optional push notifications to phones through [ntfy](https://ntfy.sh). |
+| **Event history** | Every confirmed fall is stored with time, camera and identity (when known), plus a snapshot for live review. |
+| **Local and private** | Runs on a laptop CPU. Photos, face features and events are stored locally and excluded from version control. |
+
+## How it works
+
+```mermaid
+flowchart LR
+    subgraph Sources["Camera sources"]
+        A[Laptop webcam<br/>browser]
+        B[Phone camera<br/>browser over Wi-Fi]
+        C[IP / RTSP camera<br/>pulled by server]
+    end
+    subgraph Server["SentryCare server (Flask, local)"]
+        D[Latest-frame buffer<br/>per camera]
+        E[Face pipeline<br/>YuNet + SFace]
+        F[Body pipeline<br/>YOLO11-pose + ByteTrack]
+        G[Per-person fall<br/>state machine]
+        H[(SQLite registry<br/>people · features · events)]
+        I[Alert hub]
+    end
+    subgraph Clients["Viewers"]
+        J[Dashboard<br/>laptop / phones]
+        K[ntfy push<br/>optional]
+    end
+    A & B & C --> D --> E & F
+    F --> G
+    E -- identity --> G
+    E <--> H
+    G -- confirmed fall --> H
+    G -- confirmed fall --> I
+    I -- live events --> J
+    I -. text only .-> K
 ```
 
-The proposal is now at `docs/SentryCare_Project_Proposal.pdf`. Existing captured photos were moved into `data/captured_faces/` without modification. Old commands such as `python phase5_production.py` still launch the packaged implementation.
+### 1. Camera input
 
-## Run on this machine
+Each camera source keeps **only its newest frame**. A single analysis worker always processes the latest frame
+from each camera, so when analysis is slower than capture, stale frames are dropped rather than queued.
+Live video therefore stays smooth and alerts are never delayed by a backlog. Viewers receive an annotated
+MJPEG stream: the newest frame with the newest analysis drawn on top.
 
-The project-local Python 3.12 environment and dependencies are installed. From the project directory:
+### 2. Face recognition
+
+1. **Detection:** OpenCV's YuNet detector finds faces and five facial landmarks.
+2. **Alignment:** each face is aligned using its landmarks, the same way at enrollment and at recognition.
+3. **Embedding:** the SFace model converts the aligned face into a 128-dimensional feature vector.
+4. **Matching:** a face is compared with every enrolled person by cosine similarity, using the mean of each person's
+   two best-matching reference photos. A name is shown only when the score is at least **0.45** and beats the
+   next person by at least **0.06**. It must also be confirmed on two consecutive checks. Otherwise the face is
+   *Unknown* or *Checking*.
+
+Enrolment validates every photo: exactly one face, a minimum face size, sharpness and exposure. A person needs at least
+three accepted photos. *Build profile* computes and stores face features; it does not retrain the neural network.
+
+### 3. Fall detection
+
+For every person in view:
+
+1. **Pose and tracking:** YOLO11-pose returns a bounding box and 17 body keypoints, and ByteTrack keeps a stable
+   ID for each person across frames.
+2. **Posture signals:** torso orientation, height of the body in the frame, head position relative to the hips,
+   and descent speed (from keypoints or from the bounding box dropping).
+3. **State machine:** `Normal → Check posture → Confirming fall → FALL`. Down evidence must persist for 1.2 s.
+4. **Stayed-down check:** the person must then remain low and roughly still for a further 2 s. Getting up cancels
+   the alert. This removes most false alarms from sitting, bending or kneeling.
+5. **Robustness:** if body keypoints are lost mid-fall, a lying bounding box continues the fall, but only after an
+   observed descent. When the tracker assigns a new ID to a fallen person, the new track inherits the fall history.
+   Lying down without a fall is shown as *Lying (no fall seen)* and never raises an alarm.
+
+The design and its trade-offs are documented in [docs/FALL_DETECTION.md](docs/FALL_DETECTION.md).
+
+### 4. Alerts
+
+A confirmed fall produces one alert for that person. The alert is pushed instantly over Server-Sent Events to every open
+dashboard. It shows the snapshot, camera, person and time, and sounds a siren until someone acknowledges it.
+Acknowledging on any device clears the alert everywhere and records who responded.
+
+## Technology stack
+
+| Component | Technology |
+|---|---|
+| Language / runtime | Python 3.12 |
+| Web server and UI | Flask, vanilla JavaScript, Server-Sent Events, MJPEG streaming |
+| Face detection / recognition | OpenCV 4.11: YuNet (2023mar) and SFace (2021dec) ONNX models |
+| Pose estimation and tracking | Ultralytics YOLO11n-pose with ByteTrack (PyTorch, CPU) |
+| Fallback pose model | MediaPipe Pose 0.10.21 (single person) |
+| Storage | SQLite (WAL mode) and local image files |
+| Networking (demo mode) | Self-signed HTTPS (`cryptography`), PIN-protected sessions, QR pairing (`segno`) |
+
+## Getting started
+
+### Requirements
+
+- Windows 10/11 (the launch scripts are PowerShell; the Python code is cross-platform)
+- Python 3.11 or 3.12
+- About 3 GB of free disk space for dependencies and models
+- A webcam. A phone on the same Wi-Fi network is optional.
+
+### Installation
 
 ```powershell
-# Start Studio; open http://127.0.0.1:8765 in your browser
-.\scripts\run.ps1
+git clone https://github.com/sploitengineer/facial_reco_cctv.git
+cd facial_reco_cctv
 
-# Webcam with face identification as well
-.\scripts\run.ps1 -Mode webcam -FaceId
-
-# Check webcam and installed inference libraries
-.\scripts\run.ps1 -Mode doctor
-
-# Headless configured camera workers; Ctrl+C stops the supervisor
-.\scripts\run.ps1 -Mode cameras
-```
-
-If PowerShell blocks local scripts, use the Python commands directly:
-
-```powershell
-.venv\Scripts\python -m sentrycare.app --source 0 --camera-id laptop --no-face-id
-.venv\Scripts\python -m sentrycare.web
-.venv\Scripts\python -m sentrycare.doctor --camera 0
-.venv\Scripts\python -m sentrycare.cameras --config configs/cameras.json
-```
-
-`--headless` removes the video window. `--max-frames 30` limits a worker smoke test. Unknown faces are saved only when face identification is enabled and a face was actually detected.
-
-## Set up a fresh checkout
-
-For a step-by-step guide explaining what to run, what to expect, and why, see [Teammate setup](docs/TEAMMATE_SETUP.md).
-
-Use Python 3.11/3.12. The legacy `mp.solutions.pose` implementation requires MediaPipe 0.10.21 ([release files](https://pypi.org/project/mediapipe/0.10.21/#files)).
-
-```powershell
-# With uv already installed; downloads local Python if needed
+# Option A: automated (requires uv: https://docs.astral.sh/uv/)
 .\scripts\setup.ps1
 
-# Or use an installed Python 3.12
+# Option B: standard Python
 py -3.12 -m venv .venv
-.venv\Scripts\python -m pip install -r requirements.txt
-.venv\Scripts\python -m pip install --no-deps -e .
-Copy-Item configs/cameras.example.json configs/cameras.json
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m pip install --no-deps -e .
 ```
 
-On Linux/macOS use `python3.12 -m venv .venv`, `.venv/bin/python`, and the module commands. The Windows setup scripts and live webcam path have been exercised on this machine. Keep the virtual environment local to this checkout.
+Model weights (YuNet, SFace and YOLO11n-pose, about 50 MB in total) are downloaded automatically into `data/models/` on first start.
+Detailed steps and troubleshooting: [docs/INSTALLATION.md](docs/INSTALLATION.md).
 
-## Camera configuration
+### Run
 
-Edit the ignored `configs/cameras.json`. Camera `laptop` is enabled with source `0` and face identification disabled for the first live run. Enable face ID by setting `face_id` to `true`. Each enabled camera must have a unique ID and video source.
-
-The sample hallway camera uses an environment variable so its credentials stay outside tracked JSON:
+Double-click **`Start SentryCare.cmd`**, or run:
 
 ```powershell
-$env:SENTRYCARE_HALLWAY_RTSP = 'rtsp://user:password@camera-address:554/stream'
-.venv\Scripts\python -m sentrycare.cameras --config configs/cameras.json --check
+.\.venv\Scripts\python.exe -m sentrycare.web --open-browser
 ```
 
-Each worker runs in its own process and has its own pose tracker, fall state, snapshots, and logs. RTSP opens/reads have timeouts; the supervisor restarts failed or stalled workers within configured limits. Watch progress in `data/logs/cameras_status.json` and `heartbeat_<id>.json`. All workers stop when the supervisor exits. `--duration 25` limits a supervisor smoke test. Simultaneous inference across several real cameras still needs hardware profiling.
+Then open **http://127.0.0.1:8765**. Models load in about 15–40 seconds; the top bar shows *Models ready*.
 
-## Face enrollment and notifications
+## Using SentryCare
 
-Place 3-5 clear photos per consenting person under `data/known_faces/<person_name>/`. The directory name becomes the displayed identity. Enrollment and image data are ignored by Git. DeepFace's model cache lives under `data/models/`; it can download weights on first use.
+The dashboard has five sections:
 
-Notifications are optional. Install Twilio, set credentials in your shell, and supply a destination explicitly:
+| Section | Purpose |
+|---|---|
+| **Live monitoring** | Use this computer's camera to recognise faces and track posture in real time. |
+| **Camera network** | Connect phones and IP cameras, choose which one to view, and see who is in each camera. |
+| **Enroll a person** | Create a profile, capture five guided angles or upload photos, then build the profile. |
+| **Saved profiles** | Review each person's photos and status, and add or remove photos. |
+| **Event history** | Live alerts with snapshots, alert settings, and the stored fall history. |
+
+**Using a phone as a camera.** On the *Camera network* page, click **Turn on phone access**. SentryCare starts
+a secure (HTTPS) link on the local network and shows a QR code and a one-time PIN. Scan the code with a phone on the same
+Wi-Fi, enter the PIN and tap **Start streaming**. The phone's video appears on the dashboard with detections.
+
+**Alerts.** Click **Enable alerts** in the top bar once on each device that should sound an alarm. Use
+**Simulate fall alert** in *Event history* to test the alert flow safely.
+
+Step-by-step guides:
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): enrolment, recognition, monitoring and events
+- [docs/CAMERA_NETWORK.md](docs/CAMERA_NETWORK.md): phone and IP cameras, network mode, alerts and push notifications
+
+## Evaluation
+
+Fall detection was evaluated on the public **UR Fall Detection dataset (URFD)**: 15 fall and 15 daily-activity clips,
+processed at the live system's rate of 5 frames per second on a laptop CPU.
+
+| Pipeline | Falls detected (test clips) | False alarms (test clips) |
+|---|---|---|
+| Previous: MediaPipe, single person | 7 / 13 (54 %) | 1 / 13 |
+| **Current: YOLO11-pose, multi-person** | **9 / 13 (69 %)** | **0 / 13** |
+
+Test clips exclude the two clips of each type used during development. URFD clips end shortly after the fall, so each
+clip's final frame is held for 4 s to represent the person remaining on the floor. This is applied identically to fall and
+daily-activity clips. The sample is small and comes from a single dataset, so the results are indicative rather than a
+validated accuracy figure. Full method, per-clip results and face-recognition checks: [docs/EVALUATION.md](docs/EVALUATION.md).
+
+To reproduce:
 
 ```powershell
-.venv\Scripts\python -m pip install twilio
-$env:TWILIO_ACCOUNT_SID = 'your-account-sid'
-$env:TWILIO_AUTH_TOKEN = 'your-auth-token'
-$env:TWILIO_FROM_NUMBER = 'your-sender-number'
-.venv\Scripts\python -m sentrycare.app --alert-phone '+your-destination-number'
+.\.venv\Scripts\python.exe scripts\download_urfd_samples.py --falls 15 --adls 15
+.\.venv\Scripts\python.exe scripts\benchmark_multiperson_falls.py
 ```
 
-`.env.example` documents variables; `.env` is not loaded automatically. No SMS was sent during verification. CSV delivery statuses distinguish console logging, missing setup, failures, and Twilio acceptance; acceptance is not proof of handset delivery.
-
-## Fall evaluation
-
-The four-clip sample downloader uses the official [URFD dataset](https://fenix.ur.edu.pl/~mkepski/ds/uf.html). It downloads camera-0 RGB sequences and millisecond timing CSVs, preserves attribution, and creates a manifest. The source permits non-commercial academic use under CC BY-NC-SA 4.0. This small manifest is a pipeline smoke test, not subject-disjoint accuracy validation.
+## Testing
 
 ```powershell
-.venv\Scripts\python scripts/download_urfd_samples.py
-.venv\Scripts\python -m sentrycare.evaluation extract data/evaluation/urfd_samples.csv --output data/evaluation/urfd_features.json
-.venv\Scripts\python -m sentrycare.evaluation tune data/evaluation/urfd_features.json --report data/evaluation/urfd_report.json --config-output data/evaluation/urfd_candidate.json
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-For full evaluation, copy `evaluation/manifest.example.csv` and list your own recordings. Paths are relative to the manifest. Labels are `fall`/`adl`; splits are `train`/`validation`/`test`. Training requires both labels. Video files use their recorded FPS; URFD camera-0 image directories require a `timestamps` column pointing to the timing CSV. Split by subject/camera/session and reserve a final test set.
+The 103 automated tests run offline in about 10 seconds and do not use a camera. They cover:
 
-Feature extraction runs MediaPipe once. Threshold search uses only the standard library, tests 27 combinations by default, and chooses by training F1 with fewer false positives as the tie-breaker. Held-out clips do not affect selection. Reports contain clip-level confusion counts, precision, recall, specificity, F1, and first-alert timestamps. These timestamps are relative to recording start, not fall-onset latency.
+- fall state machines, including multi-person tracking, the stayed-down check, track hand-off and box-only evidence
+- face enrolment validation and identity matching
+- camera sources and the latest-frame analysis loop
+- alert broadcast, acknowledgement and push-notification privacy
+- network-mode authentication, PIN lockout and HTTPS
+- stream reconnects and the camera supervisor
+- repository privacy guards that block photos, biometric data or credentials from being committed
 
-Default settings in `configs/fall.default.json` remain unchanged after sample evaluation. Load an appropriately validated configuration using `--fall-config <path>`. The current heuristic can confuse deliberate lying down with a fall and tracks one pose per camera.
+## Project structure
 
-## Verification and remaining work
+```text
+├── sentrycare/                 Application package
+│   ├── web.py                  Flask server, routes, access control, entry point
+│   ├── studio.py               Enrolment jobs and per-session live analysis
+│   ├── vision.py               YuNet detection, face alignment, SFace embeddings, matching
+│   ├── registry.py             SQLite registry: people, photos, features, events
+│   ├── body_tracking.py        YOLO11-pose + ByteTrack multi-person fall monitor
+│   ├── fall_detection.py       Posture features and fall state machine
+│   ├── sources.py              Camera sources, latest-frame buffers, annotated streams
+│   ├── alerts.py               Alert hub, live broadcast, acknowledgement, ntfy push
+│   ├── lan.py, netinfo.py      Network mode: HTTPS listener, certificate, QR pairing
+│   ├── app.py, cameras.py      Command-line camera worker and multi-camera supervisor
+│   ├── evaluation.py           Threshold search and evaluation reports
+│   ├── doctor.py               Environment and webcam diagnostics
+│   └── web/                    Dashboard and phone-camera pages (HTML, CSS, JavaScript)
+├── tests/                      Automated test suite
+├── scripts/                    Setup, launch, dataset download and benchmarks
+├── docs/                       User, installation, design and evaluation documentation
+├── configs/                    Example camera and fall-detection configuration
+├── examples/                   Early standalone prototypes (kept for reference)
+├── data/                       Local runtime data: models, profiles, events (not tracked)
+└── Start SentryCare.cmd        One-click launcher
+```
+
+## Configuration
+
+| Setting | Purpose |
+|---|---|
+| `SENTRYCARE_DATA_DIR` | Location for models, profiles and events (default: `data/`) |
+| `SENTRYCARE_POSE` | `auto` (default), `yolo` or `mediapipe`. Selects the body-tracking model. |
+| `configs/cameras.json` | Cameras for the command-line supervisor (copy from `cameras.example.json`). Credentials are read from environment variables, never from the file. |
+| *Event history → Phone push* | ntfy server and topic for optional push notifications (stored locally) |
+
+Command-line tools, mainly for headless operation and diagnostics:
 
 ```powershell
-.venv\Scripts\python -m unittest discover -s tests -v
-uv pip check --python .venv/Scripts/python.exe --cache-dir tmp/uv-cache
+.\.venv\Scripts\python.exe -m sentrycare.doctor --camera 0                      # environment and webcam check
+.\.venv\Scripts\python.exe -m sentrycare.app --source 0 --camera-id laptop      # single-camera worker
+.\.venv\Scripts\python.exe -m sentrycare.cameras --config configs/cameras.json  # multi-camera supervisor
+.\.venv\Scripts\python.exe -m sentrycare.web --lan --pin 1357                    # start directly in network mode
 ```
 
-Tests cover confirmation/recovery, unreliable poses, recording timestamps, train/held-out separation, face detection without enrollment, event logging, reconnects, worker configuration, restart limits, watchdogs, and cleanup. See `docs/VALIDATION.md` for actual integration results and `docs/NEXT_STEPS.md` for the steps requiring your input.
+## Privacy and data handling
 
-Next development areas: full dataset evaluation, target-hardware profiling, multi-person body tracking, and the proposal's GPU confirmation tier. The local Studio now provides enrollment, saved-photo management, live monitoring, and SQLite event history.
+- **Local processing:** all detection and recognition runs on the local machine.
+- **No biometric data in the repository:** face photos, features, databases, recordings, keys and camera
+  configurations are excluded by `.gitignore`, and automated tests enforce this.
+- **Network mode is opt-in:** it is protected by a one-time PIN over HTTPS and switched on and off from the host computer.
+  Only the host can add stream URLs or change alert settings.
+- **Push notifications are opt-in and text-only:** snapshots are never sent, and the person's name is included only if
+  explicitly enabled.
+- **Consent:** people should be enrolled only with their consent.
+
+## Limitations and future work
+
+**Current limitations**
+
+- Fall detection uses engineered rules on pose features, evaluated on a small public dataset with one camera viewpoint.
+- A fall must be seen happening. A person who falls out of view and appears already on the floor is labelled *Lying*, not alerted.
+- The stayed-down check adds about 2 s to alert latency in exchange for fewer false alarms.
+- Face recognition has not been benchmarked across large populations, varied lighting or spoofing (photo or video) attacks.
+- Network mode uses the Flask development server and a self-signed certificate. It is suitable for a trusted local network,
+  not for internet-facing deployment.
+
+**Future work**
+
+- A learned temporal fall classifier (for example an LSTM or 1D-CNN over keypoint sequences) trained on larger datasets
+- A *lying too long* inactivity alert, and floor/bed zones per camera
+- A face-recognition benchmark with held-out, consented images, plus liveness (anti-spoofing) checks
+- A production deployment: WSGI/TLS server, user accounts and roles, data-retention policy, and an event-driven GPU
+  confirmation tier as described in the project proposal
+
+## Acknowledgements and licences
+
+- **UR Fall Detection Dataset:** B. Kwolek and M. Kepski, *Human fall detection on embedded platform using depth maps and
+  wireless accelerometer*, Computer Methods and Programs in Biomedicine, 117(3), 2014. Used under CC BY-NC-SA 4.0 for
+  non-commercial academic evaluation. The dataset is downloaded by the script and is not redistributed in this repository.
+- **YuNet and SFace** face models from the [OpenCV Model Zoo](https://github.com/opencv/opencv_zoo).
+- **Ultralytics YOLO11** ([AGPL-3.0](https://github.com/ultralytics/ultralytics/blob/main/LICENSE)). Its use here is
+  academic; commercial use would require AGPL compliance or an Ultralytics licence.
+- **MediaPipe** (Apache-2.0), **Flask**, **PyTorch**, **OpenCV** and the other dependencies listed in `requirements.txt`.
 
 ## Team
 
-Kaushalendra Pratap Singh (AU2644013), Dhruv Jain (AU2644029), Nandish Bhatt (AU2644012), Dev Upadhyay (AU2644003).
+| Name | Enrolment No. |
+|---|---|
+| Kaushalendra Pratap Singh | AU2644013 |
+| Dhruv Jain | AU2644029 |
+| Nandish Bhatt | AU2644012 |
+| Dev Upadhyay | AU2644003 |

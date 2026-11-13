@@ -1,0 +1,10 @@
+# ByteTrack tuned for fall monitoring at ~5 analysed frames per second.
+# Fallen people are often partly out of frame or oddly posed, so detector scores drop; keep weak
+# matches attached to existing tracks and allow new tracks from moderate scores.
+tracker_type: bytetrack
+track_high_thresh: 0.2
+track_low_thresh: 0.1
+new_track_thresh: 0.2
+track_buffer: 15      # frames (~3 s at 5 Hz) before a lost track is discarded
+match_thresh: 0.85    # a falling box changes shape quickly; be more permissive on association
+fuse_score: True

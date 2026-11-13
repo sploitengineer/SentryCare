@@ -66,7 +66,7 @@ class FaceEngine:
             raise RuntimeError("YuNet model checksum does not match the expected release")
         with self.lock:
             cv2.setNumThreads(2)
-            self.detector = cv2.FaceDetectorYN.create(str(yunet), "", (640, 480), .85, .3, 100)
+            self.detector = cv2.FaceDetectorYN.create(str(yunet), "", (640, 480), .75, .3, 100)
             self.recognizer = cv2.FaceRecognizerSF.create(str(sface), "")
 
     def detect(self, frame):

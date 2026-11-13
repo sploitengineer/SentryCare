@@ -1,5 +1,5 @@
 import unittest
-from video_stream import frames
+from sentrycare.video_stream import frames
 
 
 class Capture:

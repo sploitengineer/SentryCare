@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#103c36">
+  <title>SentryCare camera</title><link rel="stylesheet" href="/static/mobile.css">
+  <script src="/static/camera.js" defer></script>
+</head>
+<body><div class="wrap">
+  <div class="brand"><span>✚</span>SentryCare camera</div>
+  <div class="stage"><video id="video" autoplay playsinline muted></video>
+    <span id="badge" class="badge">Camera off</span><div id="state" class="state" hidden></div></div>
+  <div class="card">
+    <p id="message">Point this phone at the room. Video is sent to the SentryCare computer on this Wi-Fi, which detects people and falls.</p>
+    <label for="name">Camera name</label><input id="name" maxlength="40" placeholder="e.g. Living room">
+    <div class="row">
+      <div><label for="facing">Lens</label><select id="facing"><option value="environment">Back camera</option><option value="user">Front camera</option></select></div>
+      <div><label for="quality">Quality</label><select id="quality"><option value="640">Fast (640px)</option><option value="960" selected>Balanced (960px)</option><option value="1280">Sharp (1280px)</option></select></div>
+    </div>
+    <button id="start" class="btn">Start streaming</button>
+    <button id="stop" class="btn secondary" disabled>Stop</button>
+    <p class="muted" id="stats"></p>
+  </div>
+  <p class="muted">Keep this page open and the screen on. Research prototype: falls need human review.</p>
+</div></body></html>

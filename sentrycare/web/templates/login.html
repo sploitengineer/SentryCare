@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SentryCare sign in</title><link rel="stylesheet" href="/static/mobile.css">
+</head>
+<body><div class="wrap">
+  <div class="brand"><span>✚</span>SentryCare</div>
+  <form class="card" method="post">
+    <h1>Enter the demo PIN</h1>
+    <p>The PIN is shown in the terminal on the computer running SentryCare.</p>
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+    <label for="pin">PIN</label>
+    <input id="pin" name="pin" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required autofocus>
+    <button class="btn" type="submit">Continue</button>
+  </form>
+</div></body></html>

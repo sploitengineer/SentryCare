@@ -2,7 +2,7 @@ import math
 from types import SimpleNamespace
 import unittest
 
-from fall_detection import FallConfig, FallStateMachine, posture_features, is_down_posture
+from sentrycare.fall_detection import FallConfig, FallStateMachine, posture_features, is_down_posture
 
 
 class FallTests(unittest.TestCase):

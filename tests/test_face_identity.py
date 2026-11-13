@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from unittest.mock import Mock
 
-from face_identity import identify_face
+from sentrycare.face_identity import identify_face
 
 
 class Frame:

@@ -317,6 +317,34 @@ class FallStateMachine:
                     self.recover_streak = 0
         return self.state
 
+    def note_fall_motion(self, now):
+        """Record descent observed by another sensor (e.g. a person box dropping quickly)."""
+        if self.config.velocity_enable:
+            self._fall_motion_until = now + self.config.fall_motion_window
+
+    def update_box_evidence(self, lying_box, now):
+        """Update from the person box when body keypoints are unusable.
+
+        A lying (wide) box counts as down evidence only together with recently observed descent
+        (from keypoints or from the box dropping). A missing pose or a horizontal box alone never
+        starts or advances a fall.
+        """
+        self.last_pose_usable = False
+        if lying_box and self.fall_motion_active_at(now):
+            self.last_score = self.config.score_threshold
+            self.last_breakdown = {"box_lying": True, "descent": True}
+            self._fall_candidate_latched = True
+            return self.update(True, now)
+        self.last_score = 0.0
+        self.last_breakdown = {}
+        state = self.update(False, now, pose_missing=True)
+        if state == NORMAL and not lying_box:
+            self._fall_candidate_latched = False
+        return state
+
+    def fall_motion_active_at(self, now):
+        return self._fall_candidate_latched or (self._fall_motion_until is not None and now <= self._fall_motion_until)
+
     def update_rich(self, landmarks, frame_h, frame_w, timestamp=None) -> str:
         """Enhanced update using full-body multi-signal analysis.
 

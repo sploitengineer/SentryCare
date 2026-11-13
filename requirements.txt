@@ -12,3 +12,13 @@ numpy==1.26.4
 
 # Local enrollment and monitoring UI
 flask==3.1.3
+
+# Demo network mode (--lan): self-signed HTTPS certificate
+cryptography==44.0.2
+segno==1.6.6  # QR code for the phone link
+
+# Multi-person body tracking: YOLO11-pose + ByteTrack (Ultralytics is AGPL-3.0; academic use).
+# Windows PyPI wheels of torch are CPU-only. On Linux add --extra-index-url https://download.pytorch.org/whl/cpu
+ultralytics==8.3.253
+torch==2.15.0
+torchvision==0.29.2
