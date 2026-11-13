@@ -1,0 +1,5 @@
+variant,falls_detected,false_alarms,recall,precision,f1
+Full system,11/15,0/15,0.733,1.0,0.846
+Without stayed-down check,11/15,0/15,0.733,1.0,0.846
+Without box continuation,6/15,0/15,0.4,1.0,0.571
+Without track hand-off,9/15,0/15,0.6,1.0,0.75

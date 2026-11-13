@@ -1,0 +1,14 @@
+{
+  "profiles": 5,
+  "photos": 16,
+  "genuine_pairs": 18,
+  "impostor_pairs": 102,
+  "genuine_similarity_mean": 0.624,
+  "impostor_similarity_mean": 0.142,
+  "threshold": 0.45,
+  "margin": 0.06,
+  "TAR_at_threshold": 1.0,
+  "FAR_at_threshold": 0.0,
+  "leave_one_out_identification": "16/16",
+  "unknown_rejection": "16/16"
+}

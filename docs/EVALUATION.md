@@ -30,6 +30,27 @@ official frame timestamps: **15 fall clips** (`fall-01`–`fall-15`) and **15 ac
 
 Median processing time per frame: YOLO11-pose about 85–115 ms; MediaPipe about 40–60 ms.
 
+**Alert delay** (from the dataset's labelled start of each fall to the alert, held view): median **4.4 s**
+(range 3.7–5.7 s) for the current pipeline and 2.6 s (1.9–3.5 s) for the previous one.
+
+**Ablation** (all 30 clips, held view, one rule switched off at a time):
+
+| Variant | Falls detected | False alarms |
+|---|---|---|
+| Full system | 11 / 15 | 0 / 15 |
+| Without stayed-down check | 11 / 15 | 0 / 15 |
+| Without box continuation | 6 / 15 | 0 / 15 |
+| Without track hand-off | 9 / 15 | 0 / 15 |
+
+The stayed-down check did not change detection on URFD. Its normal-activity clips contain no "drop and get straight back up"
+moments, which is the case the check is designed for, so it only added delay here.
+
+**Live path:** the benchmark replays frames under ideal conditions. Live frames are also JPEG-compressed by the camera and
+are occasionally skipped when analysis is busy. In a check of six fall clips streamed through the running dashboard, five
+raised an alert. Borderline falls can therefore be missed live even when they are detected in the benchmark.
+
+All of the above is reproduced in `notebooks/02_fall_detection_experiments.ipynb`, with metrics saved in `results/`.
+
 ### Interpretation
 
 - Given time on the floor, the current pipeline detects more falls than the previous one and raised no false alarms.
@@ -72,7 +93,7 @@ is planned future work.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-103 tests run offline in about 10 seconds without a camera. They cover:
+104 tests run offline in about 10 seconds without a camera. They cover:
 
 | Area | Examples |
 |---|---|

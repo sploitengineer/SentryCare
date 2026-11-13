@@ -91,6 +91,24 @@ class MultiPersonFallTests(unittest.TestCase):
         alerts = [p for people in history for p in people if p["new_alert"]]
         self.assertEqual(len(alerts), 1)
 
+    def test_fall_stays_a_fall_after_descent_evidence_expires(self):
+        # Descent evidence is short-lived. Once a drop was seen, the episode must still alert and must not
+        # be relabelled "Lying (no fall seen)" when that evidence expires during the stayed-down wait.
+        m = monitor(stay_down_seconds=2.0)
+        script = fall_script(after=45)
+        history = []
+        for i, detections in enumerate(script):
+            history.append(m.update(FRAME, i * .2, detections=detections))
+            track = m.tracks.get(1)
+            if track and track.state == CHECKING_DOWN:
+                track.fsm._fall_candidate_latched = False     # simulate the evidence lapsing
+                track.fsm._fall_motion_until = None
+        seq = states(history, 1)
+        self.assertIn(CONFIRMED_FALL, seq)
+        self.assertNotIn(LYING, seq[seq.index(CHECKING_DOWN):])
+        self.assertEqual(seq[-1], CONFIRMED_FALL)
+        self.assertEqual(sum(p["new_alert"] for people in history for p in people), 1)
+
     def test_getting_up_cancels_before_alert(self):
         m = monitor(stay_down_seconds=2.0)
         script = fall_script(after=8) + [[det(1, standing())] for _ in range(15)]

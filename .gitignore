@@ -103,3 +103,13 @@ project_blueprint.html
 # Tool output and internal working notes
 runs/
 docs/CLAUDE_PROJECT_HANDOVER.md
+
+# Charts used by the LaTeX report and slides (generated plots, no personal images)
+!report/figures/*.png
+!presentation/figures/*.png
+
+# Private team notes for the presentation (not part of the repository)
+team_notes/
+
+# Local helper output
+video_output/

@@ -7,6 +7,8 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parent.parent
+# Generated charts and public-dataset illustrations for the report and slides. Nothing else may be an image.
+FIGURE_DIRS = ("report/figures/", "presentation/figures/")
 PRIVATE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff", ".heic", ".heif",
                     ".mp4", ".avi", ".mov", ".mkv", ".webm", ".y4m", ".yuv", ".zip", ".npy", ".npz",
                     ".pkl", ".pickle", ".joblib", ".db", ".sqlite", ".sqlite3", ".onnx", ".tflite",
@@ -24,6 +26,8 @@ class RepositoryPrivacyTests(unittest.TestCase):
         private = []
         for name in result.stdout.splitlines():
             path = Path(name)
+            if name.startswith(FIGURE_DIRS) and path.suffix.lower() == ".png":
+                continue
             if (path.suffix.lower() in PRIVATE_SUFFIXES
                     or (name.startswith("data/") and name != "data/README.md")
                     or name.startswith(("tmp/", ".venv/", ".runtime/", ".aws/"))

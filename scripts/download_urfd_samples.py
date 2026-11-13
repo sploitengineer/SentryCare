@@ -62,6 +62,8 @@ def main(argv=None):
             zipped.extractall(destination)
         rows.append({"path": f"../datasets/urfd_samples/{destination.name}", "label": name.split("-")[0],
                      "split": split, "timestamps": f"../datasets/urfd_samples/{timing.name}"})
+    # Frame-level labels (-1 not lying, 0 falling, 1 lying) give the true fall onset for latency measurement.
+    download(BASE_URL + "urfall-cam0-falls.csv", root / "urfall-cam0-falls.csv")
     output = DATA_DIR / "evaluation" / manifest_name
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", newline="", encoding="utf-8") as stream:

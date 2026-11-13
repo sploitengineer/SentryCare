@@ -19,6 +19,8 @@ All processing runs locally on a standard laptop CPU. No cloud service is requir
 - [Getting started](#getting-started)
 - [Using SentryCare](#using-sentrycare)
 - [Evaluation](#evaluation)
+- [Experiment notebooks](#experiment-notebooks)
+- [Report, slides and demo](#report-slides-and-demo)
 - [Testing](#testing)
 - [Project structure](#project-structure)
 - [Configuration](#configuration)
@@ -201,12 +203,42 @@ clip's final frame is held for 4 s to represent the person remaining on the floo
 daily-activity clips. The sample is small and comes from a single dataset, so the results are indicative rather than a
 validated accuracy figure. Full method, per-clip results and face-recognition checks: [docs/EVALUATION.md](docs/EVALUATION.md).
 
-To reproduce:
+Further findings:
+
+- **Alert delay:** median **4.4 s** from the labelled start of a fall to the alert (previous pipeline: 2.6 s). The difference is
+  the stayed-down check.
+- **Ablation:** box continuation is the most valuable rule (11 → 6 of 15 falls detected without it). Track hand-off adds two
+  detections (11 → 9 without it).
+- **Face recognition** on locally enrolled profiles: 16/16 held-out photos identified correctly, and 16/16 rejected as
+  *Unknown* when the person was not enrolled.
+
+## Experiment notebooks
+
+All experiments are reproducible from two commented Jupyter notebooks. Their logged metrics are stored in [`results/`](results).
+
+| Notebook | Contents |
+|---|---|
+| [`01_face_recognition_experiments.ipynb`](notebooks/01_face_recognition_experiments.ipynb) | Same-person vs different-person similarity, leave-one-out identification, unknown rejection, threshold sweep |
+| [`02_fall_detection_experiments.ipynb`](notebooks/02_fall_detection_experiments.ipynb) | Dataset overview, previous vs current pipeline, confusion matrices, alert delay, stayed-down sweep, ablation, timeline of one fall |
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\download_urfd_samples.py --falls 15 --adls 15
-.\.venv\Scripts\python.exe scripts\benchmark_multiperson_falls.py
+.\.venv\Scripts\python.exe scripts\download_urfd_samples.py --falls 15 --adls 15   # about 1 GB
+.\.venv\Scripts\python.exe -m jupyter notebook notebooks
 ```
+
+The fall notebook runs both pose models over every clip once (about 6 minutes on a laptop CPU), caches their outputs, and
+replays the fall logic from the cache for each experiment. The face notebook needs locally enrolled profiles. It shows no
+face images and replaces names with *Person A, B, …*.
+
+## Report, slides and demo
+
+| Deliverable | Location |
+|---|---|
+| Final report (LaTeX) | [`report/main.tex`](report/main.tex), with figures in `report/figures/` |
+| Presentation (LaTeX Beamer, 11 slides) | [`presentation/slides.tex`](presentation/slides.tex) |
+| Logged metrics | [`results/`](results) (CSV and JSON) |
+
+Both LaTeX documents compile with `pdflatex` (for example on Overleaf: upload the folder and compile `main.tex` or `slides.tex`).
 
 ## Testing
 
@@ -214,7 +246,7 @@ To reproduce:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-The 103 automated tests run offline in about 10 seconds and do not use a camera. They cover:
+The 104 automated tests run offline in about 10 seconds and do not use a camera. They cover:
 
 - fall state machines, including multi-person tracking, the stayed-down check, track hand-off and box-only evidence
 - face enrolment validation and identity matching
@@ -241,6 +273,10 @@ The 103 automated tests run offline in about 10 seconds and do not use a camera.
 │   ├── evaluation.py           Threshold search and evaluation reports
 │   ├── doctor.py               Environment and webcam diagnostics
 │   └── web/                    Dashboard and phone-camera pages (HTML, CSS, JavaScript)
+├── notebooks/                  Experiment notebooks (face recognition, fall detection)
+├── results/                    Logged experiment metrics (CSV, JSON)
+├── report/                     Final report (LaTeX) and figures
+├── presentation/               Slide deck (LaTeX Beamer) and figures
 ├── tests/                      Automated test suite
 ├── scripts/                    Setup, launch, dataset download and benchmarks
 ├── docs/                       User, installation, design and evaluation documentation

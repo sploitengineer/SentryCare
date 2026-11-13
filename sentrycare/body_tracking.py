@@ -84,6 +84,7 @@ class PersonTrack:
         self.alerted = False
         self.state = NORMAL
         self.lying = False
+        self.descent_seen = False             # a drop was observed during the current down episode
 
     def update(self, box_norm, landmarks, frame_h, frame_w, now):
         s = self.settings
@@ -107,7 +108,13 @@ class PersonTrack:
 
     def _stayed_down(self, fsm_state, center_y, now):
         s = self.settings
-        if fsm_state != NORMAL and not self.fsm.fall_motion_active_at(now):
+        # Remember for the whole episode whether a descent was seen. Descent evidence only lasts a
+        # couple of seconds, but a fall that was seen happening stays a fall until the person recovers.
+        if fsm_state == NORMAL:
+            self.descent_seen = False
+        elif self.fsm.fall_motion_active_at(now):
+            self.descent_seen = True
+        if fsm_state != NORMAL and not self.descent_seen:
             # Down/horizontal posture but no descent was observed (e.g. already lying on a sofa, or
             # entered view on the floor). Not alerted as a fall; shown as LYING for review.
             self.down_since = self.down_anchor = None

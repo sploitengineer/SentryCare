@@ -343,7 +343,7 @@ def annotate(frame, result, camera_name):
             top = max(th + 10, y)
             cv2.rectangle(image, (x, top - th - 10), (x + tw + 12, top), (45, 55, 19), -1)
             cv2.putText(image, label, (x + 6, top - 6), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1, cv2.LINE_AA)
-        if state != "NORMAL":
+        if state in ("POSSIBLE_FALL", "CHECKING_DOWN", "CONFIRMED_FALL"):   # no banner for plain lying
             banner = (40, 40, 200) if state == "CONFIRMED_FALL" else (30, 120, 220) if state == "CHECKING_DOWN" else (30, 140, 210)
             bar = round(44 * font_scale / .5 * .6) + 16
             cv2.rectangle(image, (0, 0), (width, bar), banner, -1)
