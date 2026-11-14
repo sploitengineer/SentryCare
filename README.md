@@ -140,8 +140,8 @@ Acknowledging on any device clears the alert everywhere and records who responde
 ### Installation
 
 ```powershell
-git clone https://github.com/sploitengineer/facial_reco_cctv.git
-cd facial_reco_cctv
+git clone https://github.com/sploitengineer/SentryCare.git
+cd SentryCare
 
 # Option A: automated (requires uv: https://docs.astral.sh/uv/)
 .\scripts\setup.ps1
@@ -234,8 +234,8 @@ face images and replaces names with *Person A, B, …*.
 
 | Deliverable | Location |
 |---|---|
-| Final report (LaTeX) | [`report/main.tex`](report/main.tex), with figures in `report/figures/` |
-| Presentation (LaTeX Beamer, 11 slides) | [`presentation/slides.tex`](presentation/slides.tex) |
+| Final report | [PDF](report/SentryCare_report.pdf) · LaTeX source [`report/main.tex`](report/main.tex), figures in `report/figures/` |
+| Presentation (11 slides) | [PDF](presentation/SentryCare_presentation.pdf) · LaTeX Beamer source [`presentation/slides.tex`](presentation/slides.tex) |
 | Logged metrics | [`results/`](results) (CSV and JSON) |
 
 Both LaTeX documents compile with `pdflatex` (for example on Overleaf: upload the folder and compile `main.tex` or `slides.tex`).

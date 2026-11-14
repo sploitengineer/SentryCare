@@ -14,8 +14,8 @@ local files and are not part of the repository, so each machine prepares its own
 ## 2. Get the code
 
 ```powershell
-git clone https://github.com/sploitengineer/facial_reco_cctv.git
-cd facial_reco_cctv
+git clone https://github.com/sploitengineer/SentryCare.git
+cd SentryCare
 ```
 
 ## 3. Install dependencies

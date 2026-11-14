@@ -83,27 +83,7 @@ AU2644013 & AU2644029 & AU2644012 & AU2644003
 % 4 ---------------------------------------------------------------------------------------------
 \begin{frame}{System architecture}
 \centering
-\resizebox{\linewidth}{!}{%
-\begin{tikzpicture}[
-  node distance=0.45cm and 0.75cm,
-  box/.style={draw, rounded corners=4pt, align=center, minimum height=1.1cm, text width=2.5cm, font=\small},
-  src/.style={box, fill=gray!10}, proc/.style={box, fill=green!8}, out/.style={box, fill=red!8},
-  arr/.style={-{Stealth}, thick}]
-  \node[src] (phone) {Phone camera};
-  \node[src, above=of phone] (laptop) {Laptop webcam};
-  \node[src, below=of phone] (ip) {CCTV / IP camera};
-  \node[proc, right=of phone] (buf) {Newest frame\\only};
-  \node[proc, right=of buf, yshift=1.0cm] (face) {\textbf{Faces}\\YuNet + SFace};
-  \node[proc, right=of buf, yshift=-1.0cm] (body) {\textbf{Bodies}\\YOLO11-pose};
-  \node[proc, right=of face, yshift=-1.0cm] (fall) {\textbf{Fall check}\\per person};
-  \node[out, right=of fall, yshift=0.8cm] (alert) {\textbf{Alert}\\all screens};
-  \node[out, right=of fall, yshift=-0.8cm] (db) {Event log};
-  \draw[arr] (laptop) -- (buf); \draw[arr] (phone) -- (buf); \draw[arr] (ip) -- (buf);
-  \draw[arr] (buf) -- (face); \draw[arr] (buf) -- (body);
-  \draw[arr] (face) -- node[above, font=\scriptsize, sloped] {who} (fall);
-  \draw[arr] (body) -- (fall); \draw[arr] (fall) -- (alert); \draw[arr] (fall) -- (db);
-\end{tikzpicture}%
-}\\[1.2em]
+\includegraphics[width=\linewidth]{architecture.png}\\[1.2em]
 \small Everything runs locally on one laptop CPU
 \end{frame}
 
@@ -131,7 +111,7 @@ otherwise $\Rightarrow$ \textbf{Unknown}
 \includegraphics[width=\linewidth]{fall_sequence.png}\\[0.8em]
 \begin{columns}[t]
 \column{0.32\textwidth}\centering \textbf{Track everyone}\\ \small each person, own fall check
-\column{0.32\textwidth}\centering \textbf{Confirm it}\\ \small down for 1.2 s + stays down 2 s
+\column{0.32\textwidth}\centering \textbf{Confirm it}\\ \small down 1.2~s, stays down 2~s
 \column{0.32\textwidth}\centering \textbf{Don't lose them}\\ \small box continuation + track hand-off
 \end{columns}
 \vfill\hfill{\tiny\color{gray} Images: UR Fall Detection dataset (Kwolek \& Kepski, 2014), CC BY-NC-SA 4.0}
@@ -226,7 +206,7 @@ Development & 2 & 2 \\
 \vspace{2.2em}
 \centering
 {\LARGE\bfseries\color{sentry} Thank you $\cdot$ Questions?}\\[0.6em]
-\small\url{github.com/sploitengineer/facial_reco_cctv}
+\small\url{github.com/sploitengineer/SentryCare}
 \end{frame}
 
 \end{document}

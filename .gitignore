@@ -94,6 +94,8 @@ Thumbs.db
 
 # Proposal / docs (keep repo focused on code)
 *.pdf
+!report/SentryCare_report.pdf
+!presentation/SentryCare_presentation.pdf
 generate_pdf.py
 Project_Proposal.html
 Project_Proposal.tex
