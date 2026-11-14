@@ -31,10 +31,13 @@
   {\color{gray!60}\rule{\paperwidth}{0.4pt}}%
 }
 \setbeamertemplate{footline}{%
-  {\color{aurule}\rule{\paperwidth}{0.5pt}}\\[-0.1em]%
-  \tiny\hspace{0.6cm}Kaushalendra, Dhruv, Nandish, and Dev\hfill
-  SentryCare: AI Camera Monitoring for Resident Safety\hfill
-  School of Engineering and Applied Science\hspace{2em}\insertframenumber\hspace{0.6cm}\vspace{0.45em}}
+  \leavevmode\vbox{%
+    \hbox{\color{aurule}\rule{\paperwidth}{0.5pt}}%
+    \vskip 0.35em
+    \hbox to \paperwidth{\tiny\hspace{0.6cm}Kaushalendra, Dhruv, Nandish, and Dev\hfill
+      SentryCare: AI Camera Monitoring for Resident Safety\hfill
+      School of Engineering and Applied Science\hspace{2em}\insertframenumber\hspace{0.6cm}}%
+    \vskip 0.45em}}
 \newcommand{\bignum}[1]{{\Huge\bfseries\color{aured}#1}}
 
 \title{SentryCare}
