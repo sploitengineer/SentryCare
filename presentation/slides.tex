@@ -9,19 +9,33 @@
 
 \graphicspath{{figures/}}
 
-% ---- Look and feel -------------------------------------------------------------------------------
-\definecolor{sentry}{RGB}{16,60,54}
+% ---- Look and feel (Ahmedabad University / SEAS style) -------------------------------------------
+\definecolor{aured}{RGB}{128,24,28}
+\definecolor{aupink}{RGB}{222,181,181}
+\definecolor{aurule}{RGB}{214,120,120}
+\definecolor{sentry}{RGB}{128,24,28}
 \definecolor{alertred}{RGB}{183,39,33}
-\definecolor{soft}{RGB}{244,241,234}
-\setbeamercolor{frametitle}{fg=sentry}
-\setbeamercolor{title}{fg=sentry}
-\setbeamercolor{structure}{fg=sentry}
+\definecolor{soft}{RGB}{236,239,246}
+\setbeamercolor{frametitle}{fg=black}
+\setbeamercolor{title}{fg=black}
+\setbeamercolor{structure}{fg=aured}
 \setbeamercolor{background canvas}{bg=white}
-\setbeamerfont{frametitle}{series=\bfseries,size=\Large}
+\setbeamerfont{frametitle}{size=\Large}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{itemize items}[circle]
-\setbeamertemplate{footline}{\hfill\color{gray}\scriptsize\insertframenumber\,/\,\inserttotalframenumber\hspace{1em}\vspace{0.6em}}
-\newcommand{\bignum}[1]{{\Huge\bfseries\color{sentry}#1}}
+\setbeamertemplate{frametitle}{%
+  \vspace{0.35em}%
+  \begin{beamercolorbox}[wd=\paperwidth,leftskip=0.6cm,rightskip=0.4cm]{frametitle}%
+    \insertframetitle\hfill\raisebox{-0.25em}{\includegraphics[height=0.75cm]{au_logo.png}}%
+  \end{beamercolorbox}\vspace{-0.15em}%
+  {\color{gray!60}\rule{\paperwidth}{0.4pt}}%
+}
+\setbeamertemplate{footline}{%
+  {\color{aurule}\rule{\paperwidth}{0.5pt}}\\[-0.1em]%
+  \tiny\hspace{0.6cm}Kaushalendra, Dhruv, Nandish, and Dev\hfill
+  SentryCare: AI Camera Monitoring for Resident Safety\hfill
+  School of Engineering and Applied Science\hspace{2em}\insertframenumber\hspace{0.6cm}\vspace{0.45em}}
+\newcommand{\bignum}[1]{{\Huge\bfseries\color{aured}#1}}
 
 \title{SentryCare}
 \subtitle{AI camera monitoring for resident safety in aged care}
@@ -33,19 +47,19 @@
 % 1 ---------------------------------------------------------------------------------------------
 \begin{frame}[plain]
 \begin{tikzpicture}[remember picture,overlay]
-  \fill[sentry] (current page.north west) rectangle ([yshift=-0.25cm]current page.north east);
+  \draw[aurule, line width=0.5pt] ([yshift=-0.35cm]current page.north west) -- ([yshift=-0.35cm]current page.north east);
+  \draw[aurule, line width=0.5pt] ([yshift=-0.45cm]current page.north west) -- ([yshift=-0.45cm]current page.north east);
+  \draw[aurule, line width=0.5pt] ([yshift=0.35cm]current page.south west) -- ([yshift=0.35cm]current page.south east);
+  \draw[aurule, line width=0.5pt] ([yshift=0.45cm]current page.south west) -- ([yshift=0.45cm]current page.south east);
 \end{tikzpicture}
-\vfill
 \centering
-{\fontsize{40}{44}\selectfont\bfseries\color{sentry} SentryCare}\\[0.6em]
-{\Large AI camera monitoring for resident safety in aged care}\\[2.2em]
-\small
-\begin{tabular}{cccc}
-Kaushalendra Pratap Singh & Dhruv Jain & Nandish Bhatt & Dev Upadhyay\\
-AU2644013 & AU2644029 & AU2644012 & AU2644003
-\end{tabular}\\[1.8em]
-{\color{gray}\footnotesize Project Track: Application Based}
-\vfill
+\vspace*{0.6em}
+\colorbox{aupink}{\parbox{0.72\textwidth}{\centering\vspace{0.9em}
+  {\LARGE\bfseries SentryCare: AI Camera Monitoring\\[0.25em] for Resident Safety in Aged Care}\vspace{0.9em}}}\\[1.4em]
+{\small Face recognition, multi-person fall detection and real-time alerts}\\[1.2em]
+{\large Kaushalendra Pratap Singh, Dhruv Jain, Nandish Bhatt, and Dev Upadhyay}\\[1.2em]
+{\Large School of Engineering and Applied Science, Ahmedabad University}\\[1.4em]
+\includegraphics[height=1.3cm]{au_logo.png}
 \end{frame}
 
 % 2 ---------------------------------------------------------------------------------------------
