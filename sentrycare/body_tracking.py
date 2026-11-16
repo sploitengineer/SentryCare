@@ -50,6 +50,7 @@ class TrackerSettings:
     min_confidence: float = 0.2         # fallen people often score low (odd pose, partly out of frame)
     handoff_distance: float = 0.35      # max centre distance (frame fraction) to inherit a lost track
     keypoint_confidence: float = 0.5
+    max_check_seconds: float = 6.0      # a seen fall still 'checking' after this long is alerted
 
 
 class Point:
@@ -85,6 +86,7 @@ class PersonTrack:
         self.state = NORMAL
         self.lying = False
         self.descent_seen = False             # a drop was observed during the current down episode
+        self.episode_start = None             # when the current down episode (after a seen drop) began
 
     def update(self, box_norm, landmarks, frame_h, frame_w, now):
         s = self.settings
@@ -112,6 +114,7 @@ class PersonTrack:
         # couple of seconds, but a fall that was seen happening stays a fall until the person recovers.
         if fsm_state == NORMAL:
             self.descent_seen = False
+            self.episode_start = None
         elif self.fsm.fall_motion_active_at(now):
             self.descent_seen = True
         if fsm_state != NORMAL and not self.descent_seen:
@@ -119,6 +122,13 @@ class PersonTrack:
             # entered view on the floor). Not alerted as a fall; shown as LYING for review.
             self.down_since = self.down_anchor = None
             self.state = LYING
+            return self.state
+        if fsm_state != NORMAL and self.episode_start is None:
+            self.episode_start = now
+        if fsm_state != NORMAL and now - self.episode_start >= s.max_check_seconds:
+            # A drop was seen and the person has stayed down this long, but the checks kept being
+            # interrupted (e.g. other people in view). Down too long after a fall: raise the alert.
+            self.state = CONFIRMED_FALL
             return self.state
         if fsm_state != CONFIRMED_FALL:
             self.down_since = self.down_anchor = None
@@ -130,7 +140,7 @@ class PersonTrack:
             self.down_since, self.down_anchor = now, center_y
         if self.down_anchor - center_y > s.rise_tolerance:      # box centre rose: getting up
             self.fsm.reset()
-            self.down_since = self.down_anchor = None
+            self.down_since = self.down_anchor = self.episode_start = None
             self.state = NORMAL
             self.alerted = False
             return self.state
