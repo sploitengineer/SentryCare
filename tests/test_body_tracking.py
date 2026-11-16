@@ -149,6 +149,13 @@ class MultiPersonFallTests(unittest.TestCase):
         self.assertIn(CONFIRMED_FALL, states(history, 1))
         self.assertTrue(any(p["signals"].get("box_lying") for people in history for p in people))
 
+    def test_person_found_lying_too_long_is_alerted_once(self):
+        m = monitor()
+        history = run(m, [[det(1, lying())] for _ in range(50)])      # 10 s lying, no fall seen
+        self.assertEqual(states(history, 1)[0], LYING)
+        self.assertEqual(states(history, 1)[-1], CONFIRMED_FALL)
+        self.assertEqual(sum(p["new_alert"] for people in history for p in people), 1)
+
     def test_lying_box_without_descent_never_starts_a_fall(self):
         m = monitor()
         no_points = np.zeros(17)

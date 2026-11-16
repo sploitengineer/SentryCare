@@ -51,6 +51,7 @@ class TrackerSettings:
     handoff_distance: float = 0.35      # max centre distance (frame fraction) to inherit a lost track
     keypoint_confidence: float = 0.5
     max_check_seconds: float = 6.0      # a seen fall still 'checking' after this long is alerted
+    lying_alert_seconds: float = 8.0    # someone found lying (no fall seen) this long is alerted
 
 
 class Point:
@@ -87,6 +88,7 @@ class PersonTrack:
         self.lying = False
         self.descent_seen = False             # a drop was observed during the current down episode
         self.episode_start = None             # when the current down episode (after a seen drop) began
+        self.lying_since = None               # when the person was first seen lying without a seen drop
 
     def update(self, box_norm, landmarks, frame_h, frame_w, now):
         s = self.settings
@@ -121,8 +123,12 @@ class PersonTrack:
             # Down/horizontal posture but no descent was observed (e.g. already lying on a sofa, or
             # entered view on the floor). Not alerted as a fall; shown as LYING for review.
             self.down_since = self.down_anchor = None
-            self.state = LYING
+            if self.lying_since is None:
+                self.lying_since = now
+            # Found lying (e.g. camera panned to someone already on the floor) for too long: alert.
+            self.state = CONFIRMED_FALL if now - self.lying_since >= s.lying_alert_seconds else LYING
             return self.state
+        self.lying_since = None
         if fsm_state != NORMAL and self.episode_start is None:
             self.episode_start = now
         if fsm_state != NORMAL and now - self.episode_start >= s.max_check_seconds:
