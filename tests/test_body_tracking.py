@@ -118,7 +118,7 @@ class MultiPersonFallTests(unittest.TestCase):
         self.assertEqual(states(history, 1)[-1], NORMAL)
 
     def test_slow_lying_down_without_descent_is_not_a_fall(self):
-        m = monitor()
+        m = monitor(lying_alert_seconds=1e9)
         script = [[det(1, lying())] for _ in range(30)]               # e.g. already lying on a sofa
         history = run(m, script)
         self.assertNotIn(CONFIRMED_FALL, states(history, 1))

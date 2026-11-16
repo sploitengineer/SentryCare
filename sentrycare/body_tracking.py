@@ -51,7 +51,7 @@ class TrackerSettings:
     handoff_distance: float = 0.35      # max centre distance (frame fraction) to inherit a lost track
     keypoint_confidence: float = 0.5
     max_check_seconds: float = 6.0      # a seen fall still 'checking' after this long is alerted
-    lying_alert_seconds: float = 8.0    # someone found lying (no fall seen) this long is alerted
+    lying_alert_seconds: float = 2.0    # someone found lying (no fall seen) this long is alerted
 
 
 class Point:
